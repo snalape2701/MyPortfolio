@@ -1,0 +1,13 @@
+{
+  "name": "luxury-portfolio",
+  "version": "1.0.0",
+  "description": "Premium Glassmorphism Portfolio",
+  "main": "index.js",
+  "scripts": {
+    "dev:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --watch",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}
