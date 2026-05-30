@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+from mangum import Mangum
 from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status
@@ -40,6 +41,7 @@ app.add_middleware(
 )
 
 # File path for saving local submissions (Fallback Store)
+# NOTE: Writing files locally won't persist permanently on Vercel's serverless environment.
 SUBMISSIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "submissions.json")
 
 # Pydantic Schemas
@@ -78,7 +80,7 @@ class ExperienceResponse(BaseModel):
     description: str
 
 
-# FALLBACK SEED DATA (Used if Supabase is unconfigured or tables don't exist yet)
+# FALLBACK SEED DATA 
 MOCK_PROJECTS = [
     {
         "id": "mock_p1",
@@ -182,7 +184,6 @@ def get_projects():
     
     try:
         response = supabase.table("projects").select("*").execute()
-        # If response has elements, return them, else return mock data to prevent blank screen
         if response.data and len(response.data) > 0:
             return response.data
         logger.warning("Supabase table 'projects' is empty. Serving seed mock projects.")
@@ -226,7 +227,6 @@ def submit_contact(submission: ContactSubmission):
     timestamp = datetime.utcnow().isoformat() + "Z"
     submission_id = f"sub_{int(datetime.utcnow().timestamp())}"
 
-    # 1. Try writing to Supabase
     if supabase:
         try:
             data = {
@@ -234,7 +234,6 @@ def submit_contact(submission: ContactSubmission):
                 "email": submission.email,
                 "message": submission.message
             }
-            # Perform write
             db_response = supabase.table("contact_submissions").insert(data).execute()
             if db_response.data:
                 logger.info("Submission successfully saved in Supabase.")
@@ -246,9 +245,7 @@ def submit_contact(submission: ContactSubmission):
                 )
         except Exception as e:
             logger.warning(f"Failed to write to Supabase. Falling back to local JSON logger. Error: {str(e)}")
-            # Fall through to local logger if DB write failed
             
-    # 2. Local Fallback Logging (If Supabase is unconfigured or table write fails)
     try:
         submissions = []
         if os.path.exists(SUBMISSIONS_FILE):
@@ -296,3 +293,5 @@ def get_submissions():
             except json.JSONDecodeError:
                 return []
     return []
+    
+handler = Mangum(app)
