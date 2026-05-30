@@ -2,14 +2,30 @@
     "version": 2,
     "builds": [
         {
-            "src": "main.py",
+            "src": "frontend/public/**/*",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "backend/app/main.py",
             "use": "@vercel/python"
         }
     ],
     "routes": [
         {
+            "src": "/api/(.*)",
+            "dest": "backend/app/main.py"
+        },
+        {
+            "src": "/docs",
+            "dest": "backend/app/main.py"
+        },
+        {
+            "src": "/openapi.json",
+            "dest": "backend/app/main.py"
+        },
+        {
             "src": "/(.*)",
-            "dest": "main.py"
+            "dest": "frontend/public/$1"
         }
     ]
 }
