@@ -14,9 +14,9 @@ load_dotenv()
 
 # Safe absolute imports
 try:
-    from app.supabase_client import get_supabase_client
+    from app.resend_client import send_contact_email, is_resend_configured
 except ImportError:
-    from supabase_client import get_supabase_client
+    from resend_client import send_contact_email, is_resend_configured
 
 # Configure Logger
 logger = logging.getLogger("main")
@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(
     title="Luxury Portfolio Backend API",
     description="High-fidelity API to power contact form submissions, analytics, projects, and work experience.",
-    version="1.1.0",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -61,7 +61,7 @@ class MetaResponse(BaseModel):
     role: str
     tech_stack: List[str]
     status: str
-    database_mode: str
+    email_service: str
 
 class ProjectResponse(BaseModel):
     id: Optional[str] = None
@@ -80,7 +80,7 @@ class ExperienceResponse(BaseModel):
     description: str
 
 
-# FALLBACK SEED DATA 
+# STATIC SEED DATA
 MOCK_PROJECTS = [
     {
         "id": "mock_p1",
@@ -160,92 +160,53 @@ MOCK_EXPERIENCES = [
 @app.get("/", response_model=MetaResponse, status_code=status.HTTP_200_OK)
 def read_root():
     """
-    Root endpoint serving developer meta-information and active database modes.
+    Root endpoint serving developer meta-information and active email service status.
     """
-    supabase = get_supabase_client()
-    db_mode = "SUPABASE_ACTIVE" if supabase else "LOCAL_JSON_FALLBACK"
+    email_status = "RESEND_ACTIVE" if is_resend_configured() else "LOCAL_JSON_FALLBACK"
     return MetaResponse(
         name="Sahil Talape",
         role="Full Stack Developer",
-        tech_stack=["HTML5", "Tailwind CSS", "JavaScript", "Python", "FastAPI", "Supabase"],
+        tech_stack=["HTML5", "Tailwind CSS", "JavaScript", "Python", "FastAPI", "Resend"],
         status="API running smoothly",
-        database_mode=db_mode
+        email_service=email_status
     )
 
 @app.get("/api/projects", response_model=List[ProjectResponse], status_code=status.HTTP_200_OK)
 def get_projects():
     """
-    Fetches portfolio projects from Supabase. Falls back to static mock seed data if disconnected.
+    Returns portfolio projects from static seed data.
     """
-    supabase = get_supabase_client()
-    if not supabase:
-        logger.info("Serving projects from local fallback database.")
-        return MOCK_PROJECTS
-    
-    try:
-        response = supabase.table("projects").select("*").execute()
-        if response.data and len(response.data) > 0:
-            return response.data
-        logger.warning("Supabase table 'projects' is empty. Serving seed mock projects.")
-        return MOCK_PROJECTS
-    except Exception as e:
-        logger.error(f"Supabase Projects query failure: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Supabase connection query failed: {str(e)}. Ensure 'projects' table is defined."
-        )
+    return MOCK_PROJECTS
 
 @app.get("/api/experiences", response_model=List[ExperienceResponse], status_code=status.HTTP_200_OK)
 def get_experiences():
     """
-    Fetches experience rows from Supabase. Falls back to local structural array if disconnected.
+    Returns work experience entries from static seed data.
     """
-    supabase = get_supabase_client()
-    if not supabase:
-        logger.info("Serving experiences from local fallback database.")
-        return MOCK_EXPERIENCES
-    
-    try:
-        response = supabase.table("experiences").select("*").execute()
-        if response.data and len(response.data) > 0:
-            return response.data
-        logger.warning("Supabase table 'experiences' is empty. Serving seed mock experience.")
-        return MOCK_EXPERIENCES
-    except Exception as e:
-        logger.error(f"Supabase Experience query failure: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Supabase connection query failed: {str(e)}. Ensure 'experiences' table is defined."
-        )
+    return MOCK_EXPERIENCES
 
 @app.post("/api/contact", response_model=ContactResponse, status_code=status.HTTP_201_CREATED)
 def submit_contact(submission: ContactSubmission):
     """
-    Saves a contact form submission directly to Supabase, falling back to a local JSON file.
+    Processes a contact form submission:
+    1. Sends an email notification via Resend (if configured).
+    2. Always saves to local JSON as a persistent backup log.
     """
-    supabase = get_supabase_client()
     timestamp = datetime.utcnow().isoformat() + "Z"
     submission_id = f"sub_{int(datetime.utcnow().timestamp())}"
 
-    if supabase:
-        try:
-            data = {
-                "name": submission.name,
-                "email": submission.email,
-                "message": submission.message
-            }
-            db_response = supabase.table("contact_submissions").insert(data).execute()
-            if db_response.data:
-                logger.info("Submission successfully saved in Supabase.")
-                return ContactResponse(
-                    success=True,
-                    message="Your message has been received and saved securely in our Supabase database!",
-                    submission_id=submission_id,
-                    timestamp=timestamp
-                )
-        except Exception as e:
-            logger.warning(f"Failed to write to Supabase. Falling back to local JSON logger. Error: {str(e)}")
-            
+    # Attempt to send email via Resend
+    email_sent = False
+    if is_resend_configured():
+        result = send_contact_email(
+            name=submission.name,
+            email=submission.email,
+            message=submission.message
+        )
+        if result:
+            email_sent = True
+
+    # Always save to local JSON as backup
     try:
         submissions = []
         if os.path.exists(SUBMISSIONS_FILE):
@@ -261,25 +222,30 @@ def submit_contact(submission: ContactSubmission):
             "email": submission.email,
             "message": submission.message,
             "timestamp": timestamp,
-            "storage": "Local JSON Fallback"
+            "email_sent": email_sent
         }
-        
+
         submissions.append(record)
         with open(SUBMISSIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(submissions, f, indent=4, ensure_ascii=False)
-            
-        return ContactResponse(
-            success=True,
-            message="Your message is safely received! Running in Local JSON fallback mode.",
-            submission_id=submission_id,
-            timestamp=timestamp
-        )
-        
+
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected server error occurred: {str(e)}"
-        )
+        logger.error(f"Failed to write to local JSON log: {str(e)}")
+
+    # Determine response message
+    if email_sent:
+        msg = "Your message has been sent successfully! I'll get back to you soon."
+    elif is_resend_configured():
+        msg = "Email delivery encountered an issue, but your message has been saved. I'll review it shortly."
+    else:
+        msg = "Your message has been saved locally. Email delivery is not yet configured."
+
+    return ContactResponse(
+        success=True,
+        message=msg,
+        submission_id=submission_id,
+        timestamp=timestamp
+    )
 
 @app.get("/api/submissions", status_code=status.HTTP_200_OK)
 def get_submissions():
@@ -293,5 +259,5 @@ def get_submissions():
             except json.JSONDecodeError:
                 return []
     return []
-    
+
 handler = Mangum(app)
