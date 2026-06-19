@@ -1,0 +1,18 @@
+[
+    {
+        "id": "sub_1781843713",
+        "name": "Nirnay",
+        "email": "bhagatnirnay2005@gmail.com",
+        "message": "Hi this is a testing mail.",
+        "timestamp": "2026-06-19T10:05:13.164881Z",
+        "email_sent": false
+    },
+    {
+        "id": "sub_1781844199",
+        "name": "Nirnay",
+        "email": "bhagatnirnay2005@gmail.com",
+        "message": "Hi this a testing mail",
+        "timestamp": "2026-06-19T10:13:19.444226Z",
+        "email_sent": false
+    }
+]
