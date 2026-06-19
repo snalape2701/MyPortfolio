@@ -14,9 +14,12 @@ load_dotenv()
 
 # Safe absolute imports
 try:
-    from app.resend_client import send_contact_email, is_resend_configured
+    from backend.app.resend_client import send_contact_email, is_resend_configured
 except ImportError:
-    from resend_client import send_contact_email, is_resend_configured
+    try:
+        from app.resend_client import send_contact_email, is_resend_configured
+    except ImportError:
+        from resend_client import send_contact_email, is_resend_configured
 
 # Configure Logger
 logger = logging.getLogger("main")
