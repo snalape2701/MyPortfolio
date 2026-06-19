@@ -273,7 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
     formLoader.classList.add('opacity-100');
 
     try {
-      const response = await fetch('http://localhost:8000/api/contact', {
+      const endpoint = window.location.protocol === 'file:' 
+        ? 'http://localhost:8000/api/contact' 
+        : '/api/contact';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

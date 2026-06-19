@@ -33,7 +33,7 @@ if not exist "venv" (
 )
 
 echo  [-] Activating virtual environment...
-call venv\Scripts\activate
+call venv\Scripts\activate  
 
 echo  [-] Checking / Installing requirements...
 pip install -r requirements.txt
