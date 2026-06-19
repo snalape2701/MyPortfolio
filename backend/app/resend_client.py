@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 # Load Resend configuration from environment
 RESEND_API_KEY: Optional[str] = os.getenv("RESEND_API_KEY")
 CONTACT_TO_EMAIL: str = os.getenv("CONTACT_TO_EMAIL", "sahiltalape2701@gmail.com")
-CONTACT_FROM_EMAIL: str = os.getenv("CONTACT_FROM_EMAIL", "onboarding@resend.dev")
+CONTACT_FROM_EMAIL: str = os.getenv("CONTACT_FROM_EMAIL", "sahiltalape01@gmail.com")
 
 # Initialize Resend
 _resend_ready = False
